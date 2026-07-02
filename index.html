@@ -200,7 +200,7 @@
       border-bottom: 2px solid #aaa;
       transform: translateX(-50%) rotate(45deg);
       
-      /* ★修正: animationとtransitionはJSで制御するため削除し、初期状態を非表示に */
+      /* ★JSで制御するため初期状態を非表示に */
       opacity: 0; 
       pointer-events: auto;
       z-index: 100;
@@ -328,14 +328,9 @@
 
     <div class="page last-page">
       <footer>
-        <span class="lang-ja">
-          状動-PAUSE, Takahiro Yahata<br>
-          © 2026 八幡棟大. Advice: John Einarsen.
-        </span>
-        <span class="lang-en">
-          状動-PAUSE, Takahiro Yahata<br>
-          Copyright © 2026 by Takahiro Yahata. And, English Translation Advice: John Einarsen.
-        </span>
+        状動-PAUSE, © 2026<br>
+        by Takahiro Yahata.<br>
+        English Translation Advice: John Einarsen.
       </footer>
     </div>
   </main>
@@ -359,15 +354,26 @@
     let arrowBounceTimeout = null;
 
     // ----------------------------------------------------
-    // スクロールボタン（矢印）の表示・非表示制御関数
+    // スクロールボタン・言語切り替えボタンの即時非表示制御
     // ----------------------------------------------------
-    function hideArrowInstantly() {
+    function hideElementsInstantly() {
+      // 矢印の即時非表示
       clearTimeout(arrowShowTimeout);
       clearTimeout(arrowBounceTimeout);
       arrow.style.transition = 'none';
       arrow.style.opacity = '0';
       arrow.style.animation = 'none';
-      void arrow.offsetWidth; // 強制リフロー（即時適用）
+
+      // 言語切り替えボタンの即時非表示
+      const langSpans = langToggleBtn.querySelectorAll('span');
+      langSpans.forEach(span => {
+        span.style.transition = 'none';
+        span.style.opacity = '0';
+      });
+
+      // 強制リフロー（即時適用）
+      void arrow.offsetWidth; 
+      void langToggleBtn.offsetWidth; 
     }
 
     function scheduleArrowForTextPage(textCompleteTimeSec) {
@@ -401,7 +407,7 @@
     const urlParams = new URLSearchParams(window.location.search);
     let currentLang = urlParams.get('lang') === 'en' ? 'en' : 'ja';
 
-    // フッターなどの静的要素の初期言語設定
+    // フッターなどの静的要素の初期言語設定（コピーライト統一により対象要素は減りましたが安全のため残置）
     document.querySelectorAll('.lang-ja:not(.lang-wrapper)').forEach(el => {
       el.style.display = currentLang === 'ja' ? 'inline' : 'none';
     });
@@ -492,8 +498,8 @@
           currentPageIndex = Array.from(pages).indexOf(entry.target);
           isLastPage = entry.target === pages[pages.length - 1];
 
-          // ページ表示時に矢印状態を一旦リセット（非表示）
-          hideArrowInstantly();
+          // ページ表示時に矢印と言語ボタンを一旦リセット（非表示）
+          hideElementsInstantly();
 
           let lockDuration = 0;
           let maxDelayForText = 0;
@@ -578,9 +584,9 @@
         });
 
         void visiblePage.offsetWidth;
-        
-        // 言語切り替え時に矢印状態もリセット
-        hideArrowInstantly();
+
+        // 言語切り替え時に矢印と言語ボタンをリセット
+        hideElementsInstantly();
 
         const activeWrapper = visiblePage.querySelector(`.lang-wrapper.lang-${currentLang}`);
         if (activeWrapper) {
@@ -597,7 +603,7 @@
           // テキストページでの時間再計算と再登録
           const textCompleteTime = maxDelayForText + 1.5;
           const lockDuration = (textCompleteTime + 0.3) * 1000;
-          
+
           scheduleArrowForTextPage(textCompleteTime);
           animateLangToggle(visiblePage, maxDelayForText);
 
@@ -618,8 +624,8 @@
     function scrollToPage(index, isInstantAction = false) {
       if (index < 0 || index >= pages.length) return;
       
-      // スクロール開始と同時に矢印を即座に消す（残像を残さない）
-      hideArrowInstantly();
+      // スクロール開始と同時に矢印・言語ボタンを即座に消す（残像を残さない）
+      hideElementsInstantly();
       
       let behavior = 'smooth';
       if (isInstantAction) behavior = 'auto';
