@@ -112,8 +112,7 @@
     .title-content {
       opacity: 0;
       transform: translateY(20px);
-      /* ★修正：スクロール開始時（非表示時）の残像をなくすため transition を 0s に設定 */
-      transition: opacity 0s, transform 0s;
+      transition: opacity 2.5s ease, transform 2.5s ease;
     }
     .page.is-visible .title-content {
       opacity: 1;
@@ -124,8 +123,7 @@
     /* ピクトグラム専用のアニメーション */
     .circle-pictogram {
       opacity: 0;
-      /* ★修正：スクロール開始時（非表示時）の残像をなくすため transition を 0s に設定 */
-      transition: opacity 0s; 
+      transition: opacity 2.5s ease; 
     }
     .page.is-visible .circle-pictogram {
       opacity: 1;
@@ -209,15 +207,15 @@
       cursor: pointer;
     }
 
-    /* ★追加：タップできる判定エリアを拡大（見た目のサイズは維持） */
+    /* ★追加：クリック/タッチの判定領域を拡大するための透明な疑似要素 */
     .scroll-arrow::after {
       content: "";
       position: absolute;
-      top: -20px;
-      bottom: -20px;
-      left: -20px;
-      right: -20px;
-      background: transparent;
+      /* 上下左右に判定領域を15px広げる（実際のタップエリアは今の倍以上になります） */
+      top: -15px;
+      bottom: -15px;
+      left: -15px;
+      right: -15px;
     }
     
     @keyframes arrowBounce {
@@ -367,7 +365,7 @@
     let arrowBounceTimeout = null;
 
     // ----------------------------------------------------
-    // スクロールボタン・言語切り替え・テキストの即時非表示制御
+    // スクロールボタン・言語切り替えボタンの即時非表示制御
     // ----------------------------------------------------
     function hideElementsInstantly() {
       // 矢印の即時非表示
@@ -383,16 +381,6 @@
         span.style.transition = 'none';
         span.style.opacity = '0';
       });
-
-      // ★追加: 現在のページのテキストを即時非表示にする
-      const visiblePage = pages[currentPageIndex];
-      if (visiblePage && visiblePage.classList.contains('text-page')) {
-        const fragments = visiblePage.querySelectorAll('.text-fragment');
-        fragments.forEach(f => {
-          f.style.transition = 'none';
-          f.style.opacity = '0';
-        });
-      }
 
       // 強制リフロー（即時適用）
       void arrow.offsetWidth; 
@@ -570,8 +558,7 @@
           if (entry.target.classList.contains('text-page')) {
             const allFragments = entry.target.querySelectorAll('.text-fragment');
             allFragments.forEach(f => {
-              /* ★修正：2.5sのフェードアウトを0sに変更し即時非表示に */
-              f.style.transitionDuration = '0s'; 
+              f.style.transitionDuration = '2.5s'; 
               f.style.transitionDelay = '0s'; 
               f.style.opacity = '0';
             });
@@ -648,7 +635,7 @@
     function scrollToPage(index, isInstantAction = false) {
       if (index < 0 || index >= pages.length) return;
       
-      // スクロール開始と同時に要素を即座に消す（残像を残さない）
+      // スクロール開始と同時に矢印・言語ボタンを即座に消す（残像を残さない）
       hideElementsInstantly();
       
       let behavior = 'smooth';
