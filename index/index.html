@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>状動-PAUSE</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    /* 1. スクロールの大枠設定 */
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%; /* 古いブラウザ用 */
+      background-color: #ffffff;
+      color: #111;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden; 
+      /* ★追加：iOS等でのバウンススクロールを防止 */
+      overscroll-behavior-y: none;
+    }
+
+    main {
+      /* ★修正：dvhを使用してアドレスバーの増減に動的に対応 */
+      height: 100vh; 
+      height: 100dvh;
+      width: 100%;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      
+      scrollbar-width: thin; 
+      scrollbar-color: rgba(150, 150, 150, 0.3) transparent; 
+    }
+    
+    /* WebKit系（Chrome, Safari, Edge）用のスクロールバー設定 */
+    main::-webkit-scrollbar {
+      width: 6px; 
+    }
+    main::-webkit-scrollbar-track {
+      background: transparent; 
+    }
+    main::-webkit-scrollbar-thumb {
+      background: rgba(150, 150, 150, 0.3); 
+      border-radius: 10px; 
+    }
+    main::-webkit-scrollbar-thumb:hover {
+      background: rgba(150, 150, 150, 0.5); 
+    }
+
+    /* 言語切り替えボタンのコンテナ */
+    .header-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      pointer-events: none;
+      z-index: 1000;
+      /* ★追加：アドレスバーの変動に強い配置にするため少し調整 */
+      height: env(safe-area-inset-top);
+    }
+    .header-inner {
+      max-width: 46rem;
+      margin: 0 auto;
+      padding: 30px 1.2rem 0; 
+      box-sizing: border-box;
+    }
+    .lang-toggle {
+      display: inline-block;
+      pointer-events: auto; 
+      font-family: "Noto Serif JP", "Yu Mincho", "Hiragino Mincho ProN", "Times New Roman", serif;
+      font-size: 0.95rem;
+      color: #666;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+    }
+    .lang-toggle:hover {
+      color: #111;
+    }
+    .lang-toggle span {
+      display: inline-block;
+      opacity: 0;
+    }
+
+    /* 2. 1画面（1ページ）ごとの設定 */
+    .page {
+      /* ★修正：dvhを使用してアドレスバーの増減に動的に対応 */
+      height: 100vh;
+      height: 100dvh;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      
+      max-width: 46rem;
+      margin: 0 auto;
+      padding: 0 1.2rem;
+      box-sizing: border-box;
+      position: relative;
+      scroll-snap-align: center;
+      /* ★追加：ページ内のコンテンツがはみ出さないようにする */
+      overflow: hidden; 
+    }
+
+    .last-page {
+      justify-content: flex-end;
+      padding-bottom: 3rem;
+      /* iPhoneのホームバー（Safe Area）を考慮した余白調整 */
+      padding-bottom: calc(3rem + env(safe-area-inset-bottom));
+    }
+
+    /* タイトル画面のアニメーション */
+    .title-content {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 2.5s ease, transform 2.5s ease;
+    }
+    .page.is-visible .title-content {
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity 1.5s ease, transform 1.5s ease;
+    }
+
+    /* ピクトグラム専用のアニメーション */
+    .circle-pictogram {
+      opacity: 0;
+      transition: opacity 2.5s ease; 
+    }
+    .page.is-visible .circle-pictogram {
+      opacity: 1;
+      transition: opacity 2.5s ease-in-out;
+    }
+
+    /* テキストページ用の設定 */
+    .text-page p {
+      opacity: 1;
+    }
+
+    /* 各要素のスタイル */
+    p, h1, h2, h3, footer {
+      font-family: "Noto Serif JP", "Yu Mincho", "Hiragino Mincho ProN", "Times New Roman", serif;
+      line-height: 2;
+      letter-spacing: 0.02em;
+    }
+
+    h2 {
+      color: #666;
+      font-size: 0.95rem;
+      text-align: left;
+      margin-bottom: 0.2rem;
+      margin-top: 0;
+    }
+
+    h1 {
+      color: #111;
+      font-size: 1.4rem;
+      font-weight: 600;
+      text-align: left;
+      letter-spacing: 0.05em;
+      margin-top: 0;
+      margin-bottom: 0;
+    }
+
+    p {
+      margin: 0; 
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    /* テキスト分割アニメーション用のスタイル */
+    .text-fragment {
+      opacity: 0;
+      transition: opacity 1.5s ease; 
+    }
+
+    h3 {
+      color: #666;
+      font-size: 0.9rem;
+      text-align: right;
+      margin: 0;
+    }
+
+    footer {
+      border-top: 1px solid #ddd;
+      padding-top: 1rem;
+      font-size: 0.85rem;
+      color: #777;
+      text-align: center;
+      width: 100%;
+    }
+
+    /* 下スクロールを促す矢印のアニメーション */
+    .scroll-arrow {
+      position: fixed;
+      /* ★修正：iPhone等のSafe Areaを考慮した位置指定 */
+      bottom: calc(40px + env(safe-area-inset-bottom));
+      left: 50%;
+      width: 14px;
+      height: 14px;
+      border-right: 2px solid #aaa;
+      border-bottom: 2px solid #aaa;
+      transform: translateX(-50%) rotate(45deg);
+      animation: arrowBounce 2.5s infinite ease-in-out;
+      pointer-events: auto;
+      transition: opacity 0.8s ease;
+      z-index: 100;
+      cursor: pointer;
+    }
+    
+    @keyframes arrowBounce {
+      0%, 100% { transform: translateX(-50%) rotate(45deg) translate(0, 0); }
+      50% { transform: translateX(-50%) rotate(45deg) translate(8px, 8px); }
+    }
+
+    /* ピクトグラムのページ設定 */
+    .pictogram-page {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .pictogram-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3rem;
+    }
+    .circle-pictogram {
+      width: 126.5px;
+      height: 126.5px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    .circle-pictogram img {
+      max-width: 100%;
+      max-height: 100%;
+      display: block;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="header-container">
+    <div class="header-inner">
+      <div id="langToggle" class="lang-toggle"></div>
+    </div>
+  </header>
+
+  <div class="scroll-arrow" id="scrollArrow"></div>
+
+  <main id="scrollContainer">
+    <div class="page">
+      <div class="title-content">
+        <h2> </h2>
+        <h1>状動-PAUSE</h1>
+      </div>
+    </div>
+
+    <div class="page pictogram-page">
+      <div class="pictogram-container">
+        <div class="circle-pictogram">
+          <img src="images/pictogram-01.png" alt="着席OK">
+        </div>
+        <div class="circle-pictogram">
+          <img src="images/pictogram-02.png" alt="大声での会話を控える">
+        </div>
+        <div class="circle-pictogram">
+          <img src="images/pictogram-03.png" alt="スマホの使用を控える">
+        </div>
+      </div>
+    </div>
+
+    <div class="page text-page">
+      <p data-ja="たちどまり、 息を吸い 息を吐いて、" 
+         data-en="Come to a halt, breathe in, breathe out."></p>
+    </div>
+
+    <div class="page text-page">
+      <p data-ja="そうして、一拍おいて。 無理に前へ進もうとしないこと。" 
+         data-en="Pause for a moment. Don’t force yourself to move forward."></p>
+    </div>
+
+    <div class="page text-page">
+      <p data-ja="周囲が、周りが、世界が。 そうした時間の流れから、一度、離れてみる。" 
+         data-en="Here—step away from the flow of time."></p>
+    </div>
+
+    <div class="page text-page">
+      <p data-ja="そうして、「いま」と出会う。" 
+         data-en="Encounter the “now.”"></p>
+    </div>
+
+    <div class="page text-page">
+      <p data-ja="今、まさにこの瞬間のあなたと出会う。" 
+         data-en="Encounter yourself in this very moment."></p>
+    </div>
+
+    <div class="page text-page">
+      <p data-ja="ただ、ある、状態と向き合い、対面する。 直面する。" 
+         data-en="Experience the state of simply being. Face it head-on."></p>
+    </div>
+
+    <div class="page text-page">
+      <p data-ja="そうして、存在自体と対峙する。" 
+         data-en="Confront existence itself."></p>
+    </div>
+
+    <div class="page text-page">
+      <p data-ja="まずは、あなたがあって。&#10;それ以上は何も無いはず。" 
+         data-en="First and foremost, you are here.&#10;There is nothing more than that."></p>
+    </div>
+
+    <div class="page text-page">
+      <p data-ja="それでいいはず、" 
+         data-en="It is enough."></p>
+    </div>
+
+    <div class="page text-page">
+      <p data-ja="全てを創造性に還元しすぎないこと。" 
+         data-en="Not everything needs to turn into creativity."></p>
+    </div>
+
+    <div class="page"></div>
+
+    <div class="page last-page">
+      <footer>
+        <span class="lang-ja">
+          状動-PAUSE, Takahiro Yahata<br>
+          © 2026 八幡棟大. Advice: John Einarsen.
+        </span>
+        <span class="lang-en">
+          状動-PAUSE, Takahiro Yahata<br>
+          Copyright © 2026 by Takahiro Yahata. And, English Translation Advice: John Einarsen.
+        </span>
+      </footer>
+    </div>
+  </main>
+
+  <script>
+    const pages = document.querySelectorAll('.page');
+    const textPages = document.querySelectorAll('.page.text-page');
+    const arrow = document.getElementById('scrollArrow');
+    const main = document.getElementById('scrollContainer');
+    const langToggleBtn = document.getElementById('langToggle');
+
+    let isLastPage = false;
+    let currentPageIndex = 0;
+    let isScrolling = false; 
+    let isDownScrollLocked = false;
+    let downScrollTimeout = null;
+    let langToggleTimeout = null; 
+
+    // URLパラメータから初期言語を取得（?lang=en があれば英語から開始）
+    const urlParams = new URLSearchParams(window.location.search);
+    let currentLang = urlParams.get('lang') === 'en' ? 'en' : 'ja';
+
+    // フッターなどの静的要素の初期言語設定
+    document.querySelectorAll('.lang-ja:not(.lang-wrapper)').forEach(el => {
+      el.style.display = currentLang === 'ja' ? 'inline' : 'none';
+    });
+    document.querySelectorAll('.lang-en:not(.lang-wrapper)').forEach(el => {
+      el.style.display = currentLang === 'en' ? 'inline' : 'none';
+    });
+
+    // 両方の言語（JA/EN）のテキスト・遅延をあらかじめ構築しておく
+    textPages.forEach(page => {
+      const p = page.querySelector('p');
+      if (p) {
+        const texts = {
+          ja: p.getAttribute('data-ja') || '',
+          en: p.getAttribute('data-en') || ''
+        };
+        p.textContent = ''; 
+
+        ['ja', 'en'].forEach(lang => {
+          const wrapper = document.createElement('span');
+          wrapper.className = `lang-wrapper lang-${lang}`;
+          if (lang !== currentLang) wrapper.style.display = 'none'; 
+
+          let currentDelay = 0;
+          Array.from(texts[lang]).forEach(char => {
+            const span = document.createElement('span');
+            span.textContent = char;
+            span.classList.add('text-fragment');
+            span.dataset.delay = currentDelay.toFixed(2);
+            wrapper.appendChild(span);
+
+            currentDelay += 0.13; 
+
+            if (lang === 'ja' && ['、', '。', ' '].includes(char)) {
+              currentDelay += 0.30;
+            } else if (lang === 'en' && [',', '.', '—'].includes(char)) {
+              currentDelay += 0.30;
+            }
+          });
+          p.appendChild(wrapper);
+        });
+      }
+    });
+
+    // 言語ボタンの文字単位アニメーションと「視覚的な左端揃え」の処理
+    function animateLangToggle(pageElement, textMaxDelay = 0) {
+      const toggleText = currentLang === 'ja' ? 'EN/' : 'JP/';
+      langToggleBtn.innerHTML = ''; 
+
+      if (currentLang === 'ja') {
+        langToggleBtn.style.transform = 'translateX(-0.15em)';
+      } else {
+        langToggleBtn.style.transform = 'translateX(-0.08em)';
+      }
+
+      const isTextPage = pageElement.classList.contains('text-page');
+      const isPictoPage = pageElement.classList.contains('pictogram-page');
+
+      Array.from(toggleText).forEach((char) => {
+        const span = document.createElement('span');
+        span.textContent = char;
+        langToggleBtn.appendChild(span);
+      });
+
+      void langToggleBtn.offsetWidth; 
+
+      const spans = langToggleBtn.querySelectorAll('span');
+      spans.forEach((span, i) => {
+        if (isTextPage) {
+          const baseDelay = textMaxDelay + 1.5 + 3.0;
+          const charDelay = baseDelay + (i * 0.13); 
+          span.style.transition = 'opacity 1.5s ease';
+          span.style.transitionDelay = charDelay + 's';
+        } else if (isPictoPage) {
+          span.style.transition = 'opacity 2.5s ease-in-out';
+          span.style.transitionDelay = '0s';
+        } else {
+          span.style.transition = 'opacity 1.5s ease';
+          span.style.transitionDelay = '0s';
+        }
+        span.style.opacity = '1';
+      });
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          currentPageIndex = Array.from(pages).indexOf(entry.target);
+
+          let lockDuration = 0;
+          let maxDelayForText = 0;
+
+          if (entry.target.classList.contains('text-page')) {
+            const activeWrapper = entry.target.querySelector(`.lang-wrapper.lang-${currentLang}`);
+            if (activeWrapper) {
+              const fragments = activeWrapper.querySelectorAll('.text-fragment');
+              fragments.forEach((fragment) => {
+                const delay = parseFloat(fragment.dataset.delay);
+                fragment.style.transitionDuration = '1.5s'; 
+                fragment.style.transitionDelay = delay + 's';
+                fragment.style.opacity = '1';
+                if (delay > maxDelayForText) maxDelayForText = delay;
+              });
+              lockDuration = (maxDelayForText + 1.5) * 1000;
+            }
+          } else if (entry.target.classList.contains('pictogram-page')) {
+            lockDuration = 2500; 
+          } else {
+            lockDuration = 1500; 
+          }
+
+          animateLangToggle(entry.target, maxDelayForText);
+
+          isDownScrollLocked = true;
+          clearTimeout(downScrollTimeout);
+          downScrollTimeout = setTimeout(() => {
+            isDownScrollLocked = false;
+          }, lockDuration);
+
+          isLastPage = entry.target === pages[pages.length - 1];
+          if (isLastPage) {
+            arrow.style.opacity = '0';
+          } else {
+            arrow.style.opacity = '1';
+          }
+        } else {
+          entry.target.classList.remove('is-visible');
+          
+          if (entry.target.classList.contains('text-page')) {
+            const allFragments = entry.target.querySelectorAll('.text-fragment');
+            allFragments.forEach(f => {
+              f.style.transitionDuration = '2.5s'; 
+              f.style.transitionDelay = '0s'; 
+              f.style.opacity = '0';
+            });
+          }
+        }
+      });
+    }, {
+      threshold: 0.5 
+    });
+
+    pages.forEach(page => {
+      observer.observe(page);
+    });
+
+    langToggleBtn.addEventListener('click', () => {
+      currentLang = currentLang === 'ja' ? 'en' : 'ja';
+
+      const newUrl = window.location.pathname + (currentLang === 'en' ? '?lang=en' : '');
+      window.history.replaceState(null, '', newUrl);
+
+      document.querySelectorAll('.lang-ja').forEach(el => {
+        el.style.display = currentLang === 'ja' ? 'inline' : 'none';
+      });
+      document.querySelectorAll('.lang-en').forEach(el => {
+        el.style.display = currentLang === 'en' ? 'inline' : 'none';
+      });
+
+      const visiblePage = pages[currentPageIndex];
+      if (visiblePage && visiblePage.classList.contains('text-page')) {
+        const allFragments = visiblePage.querySelectorAll('.text-fragment');
+        allFragments.forEach(f => {
+          f.style.transitionDuration = '0s';
+          f.style.opacity = '0';
+        });
+
+        void visiblePage.offsetWidth;
+
+        const activeWrapper = visiblePage.querySelector(`.lang-wrapper.lang-${currentLang}`);
+        if (activeWrapper) {
+          const activeFragments = activeWrapper.querySelectorAll('.text-fragment');
+          let maxDelayForText = 0;
+          activeFragments.forEach((fragment) => {
+            const delay = parseFloat(fragment.dataset.delay);
+            fragment.style.transitionDuration = '1.5s';
+            fragment.style.transitionDelay = delay + 's';
+            fragment.style.opacity = '1';
+            if (delay > maxDelayForText) maxDelayForText = delay;
+          });
+
+          animateLangToggle(visiblePage, maxDelayForText);
+
+          const lockDuration = (maxDelayForText + 1.5) * 1000;
+          isDownScrollLocked = true;
+          clearTimeout(downScrollTimeout);
+          downScrollTimeout = setTimeout(() => {
+            isDownScrollLocked = false;
+          }, lockDuration);
+        }
+      } else {
+        animateLangToggle(visiblePage, 0);
+      }
+    });
+
+    // ----------------------------------------------------
+    // スクロール制御（滑らか or 即時）
+    // ----------------------------------------------------
+    function scrollToPage(index, isInstantAction = false) {
+      if (index < 0 || index >= pages.length) return;
+      
+      let behavior = 'smooth';
+      if (isInstantAction) behavior = 'auto';
+      if (index === 1 || currentPageIndex === 1) behavior = 'auto';
+
+      isScrolling = true;
+      currentPageIndex = index;
+      pages[index].scrollIntoView({ behavior: behavior });
+      
+      setTimeout(() => {
+        isScrolling = false;
+      }, behavior === 'auto' ? 50 : 800);
+    }
+
+    main.addEventListener('wheel', (e) => {
+      e.preventDefault(); 
+      if (isScrolling) return;
+
+      if (e.deltaY > 0) {
+        if (isDownScrollLocked) return;
+        scrollToPage(currentPageIndex + 1); 
+      } else if (e.deltaY < 0) {
+        scrollToPage(currentPageIndex - 1); 
+      }
+    }, { passive: false });
+
+    let touchStartY = 0;
+    main.addEventListener('touchstart', (e) => {
+      touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    main.addEventListener('touchmove', (e) => {
+      e.preventDefault(); 
+    }, { passive: false });
+
+    main.addEventListener('touchend', (e) => {
+      if (isScrolling) return;
+      let touchEndY = e.changedTouches[0].clientY;
+      let diff = touchStartY - touchEndY;
+
+      if (diff > 40) {
+        if (isDownScrollLocked) return;
+        scrollToPage(currentPageIndex + 1);
+      } else if (diff < -40) {
+        scrollToPage(currentPageIndex - 1);
+      }
+    });
+
+    arrow.addEventListener('click', () => {
+      if (!isLastPage && !isScrolling) {
+        if (isDownScrollLocked) return;
+        scrollToPage(currentPageIndex + 1, true);
+      }
+    });
+  </script>
+
+</body>
+</html>
