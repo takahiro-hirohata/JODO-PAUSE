@@ -11,15 +11,17 @@
       margin: 0;
       padding: 0;
       width: 100%;
-      height: 100%;
+      height: 100%; /* 古いブラウザ用 */
       background-color: #ffffff;
       color: #111;
       -webkit-font-smoothing: antialiased;
       overflow: hidden; 
+      /* iOS等でのバウンススクロールを防止 */
       overscroll-behavior-y: none;
     }
 
     main {
+      /* dvhを使用してアドレスバーの増減に動的に対応 */
       height: 100vh; 
       height: 100dvh;
       width: 100%;
@@ -30,6 +32,7 @@
       scrollbar-color: rgba(150, 150, 150, 0.3) transparent; 
     }
     
+    /* WebKit系（Chrome, Safari, Edge）用のスクロールバー設定 */
     main::-webkit-scrollbar {
       width: 6px; 
     }
@@ -52,6 +55,7 @@
       width: 100%;
       pointer-events: none;
       z-index: 1000;
+      /* アドレスバーの変動に強い配置にするため少し調整 */
       height: env(safe-area-inset-top);
     }
     .header-inner {
@@ -79,6 +83,7 @@
 
     /* 2. 1画面（1ページ）ごとの設定 */
     .page {
+      /* dvhを使用してアドレスバーの増減に動的に対応 */
       height: 100vh;
       height: 100dvh;
       width: 100%;
@@ -92,12 +97,14 @@
       box-sizing: border-box;
       position: relative;
       scroll-snap-align: center;
+      /* ページ内のコンテンツがはみ出さないようにする */
       overflow: hidden; 
     }
 
     .last-page {
       justify-content: flex-end;
       padding-bottom: 3rem;
+      /* iPhoneのホームバー（Safe Area）を考慮した余白調整 */
       padding-bottom: calc(3rem + env(safe-area-inset-bottom));
     }
 
@@ -123,10 +130,12 @@
       transition: opacity 2.5s ease-in-out;
     }
 
+    /* テキストページ用の設定 */
     .text-page p {
       opacity: 1;
     }
 
+    /* 各要素のスタイル */
     p, h1, h2, h3, footer {
       font-family: "Noto Serif JP", "Yu Mincho", "Hiragino Mincho ProN", "Times New Roman", serif;
       line-height: 2;
@@ -157,6 +166,7 @@
       word-wrap: break-word;
     }
 
+    /* テキスト分割アニメーション用のスタイル */
     .text-fragment {
       opacity: 0;
       transition: opacity 1.5s ease; 
@@ -178,9 +188,10 @@
       width: 100%;
     }
 
-    /* ▼▼ 矢印のスタイル修正 ▼▼ */
+    /* 下スクロールを促す矢印のアニメーション */
     .scroll-arrow {
       position: fixed;
+      /* iPhone等のSafe Areaを考慮した位置指定 */
       bottom: calc(40px + env(safe-area-inset-bottom));
       left: 50%;
       width: 14px;
@@ -188,34 +199,18 @@
       border-right: 2px solid #aaa;
       border-bottom: 2px solid #aaa;
       transform: translateX(-50%) rotate(45deg);
+      
+      /* ★修正: animationとtransitionはJSで制御するため削除し、初期状態を非表示に */
+      opacity: 0; 
       pointer-events: auto;
       z-index: 100;
       cursor: pointer;
-      opacity: 0; /* デフォルトは非表示・アニメーションなし */
-    }
-
-    /* フェードイン（2.0s） */
-    .scroll-arrow.fade-in {
-      opacity: 1 !important;
-      transition: opacity 2.0s ease;
-    }
-
-    /* 即座に非表示にする（スクロール開始時） */
-    .scroll-arrow.instant-hide {
-      opacity: 0 !important;
-      transition: none !important;
-    }
-
-    /* 上下のバウンスアニメーション */
-    .scroll-arrow.is-bouncing {
-      animation: arrowBounce 2.5s infinite ease-in-out;
     }
     
     @keyframes arrowBounce {
       0%, 100% { transform: translateX(-50%) rotate(45deg) translate(0, 0); }
       50% { transform: translateX(-50%) rotate(45deg) translate(8px, 8px); }
     }
-    /* ▲▲ 矢印のスタイル修正 ▲▲ */
 
     /* ピクトグラムのページ設定 */
     .pictogram-page {
@@ -356,16 +351,57 @@
     let currentPageIndex = 0;
     let isScrolling = false; 
     let isDownScrollLocked = false;
-    
-    // ▼▼ タイマー管理用の変数を追加 ▼▼
     let downScrollTimeout = null;
-    let arrowFadeTimeout = null;
-    let arrowBounceTimeout = null;
     let langToggleTimeout = null; 
 
+    // 矢印制御用タイマー
+    let arrowShowTimeout = null;
+    let arrowBounceTimeout = null;
+
+    // ----------------------------------------------------
+    // スクロールボタン（矢印）の表示・非表示制御関数
+    // ----------------------------------------------------
+    function hideArrowInstantly() {
+      clearTimeout(arrowShowTimeout);
+      clearTimeout(arrowBounceTimeout);
+      arrow.style.transition = 'none';
+      arrow.style.opacity = '0';
+      arrow.style.animation = 'none';
+      void arrow.offsetWidth; // 強制リフロー（即時適用）
+    }
+
+    function scheduleArrowForTextPage(textCompleteTimeSec) {
+      if (isLastPage) return;
+      // テキスト表示完了の0.3秒後
+      const delayBeforeShow = (textCompleteTimeSec + 0.3) * 1000;
+
+      arrowShowTimeout = setTimeout(() => {
+        // 3.0sかけてフェードイン
+        arrow.style.transition = 'opacity 3.0s ease';
+        arrow.style.opacity = '1';
+
+        arrowBounceTimeout = setTimeout(() => {
+          // フェードイン完了(3.0s)からさらに2.0s後にバウンス開始
+          arrow.style.animation = 'arrowBounce 2.5s infinite ease-in-out';
+        }, 5000); 
+      }, delayBeforeShow);
+    }
+
+    function showArrowForNormalPage() {
+      if (isLastPage) return;
+      // タイトル・ピクトグラム用: 従来通り0.8sで表示し、すぐバウンス
+      arrowShowTimeout = setTimeout(() => {
+        arrow.style.transition = 'opacity 0.8s ease';
+        arrow.style.opacity = '1';
+        arrow.style.animation = 'arrowBounce 2.5s infinite ease-in-out';
+      }, 100); 
+    }
+
+    // URLパラメータから初期言語を取得（?lang=en があれば英語から開始）
     const urlParams = new URLSearchParams(window.location.search);
     let currentLang = urlParams.get('lang') === 'en' ? 'en' : 'ja';
 
+    // フッターなどの静的要素の初期言語設定
     document.querySelectorAll('.lang-ja:not(.lang-wrapper)').forEach(el => {
       el.style.display = currentLang === 'ja' ? 'inline' : 'none';
     });
@@ -373,6 +409,7 @@
       el.style.display = currentLang === 'en' ? 'inline' : 'none';
     });
 
+    // 両方の言語（JA/EN）のテキスト・遅延をあらかじめ構築しておく
     textPages.forEach(page => {
       const p = page.querySelector('p');
       if (p) {
@@ -408,6 +445,7 @@
       }
     });
 
+    // 言語ボタンの文字単位アニメーションと「視覚的な左端揃え」の処理
     function animateLangToggle(pageElement, textMaxDelay = 0) {
       const toggleText = currentLang === 'ja' ? 'EN/' : 'JP/';
       langToggleBtn.innerHTML = ''; 
@@ -454,13 +492,10 @@
           currentPageIndex = Array.from(pages).indexOf(entry.target);
           isLastPage = entry.target === pages[pages.length - 1];
 
-          // ▼▼ ページ表示時の矢印リセット ▼▼
-          clearTimeout(downScrollTimeout);
-          clearTimeout(arrowFadeTimeout);
-          clearTimeout(arrowBounceTimeout);
-          arrow.classList.remove('fade-in', 'is-bouncing', 'instant-hide');
-          isDownScrollLocked = true; // 初期状態はロック
+          // ページ表示時に矢印状態を一旦リセット（非表示）
+          hideArrowInstantly();
 
+          let lockDuration = 0;
           let maxDelayForText = 0;
 
           if (entry.target.classList.contains('text-page')) {
@@ -474,39 +509,31 @@
                 fragment.style.opacity = '1';
                 if (delay > maxDelayForText) maxDelayForText = delay;
               });
+              
+              // テキストの完全表示までにかかる時間(秒)
+              const textCompleteTime = maxDelayForText + 1.5;
+              
+              // ロック解除はテキスト表示完了の0.3秒後
+              lockDuration = (textCompleteTime + 0.3) * 1000;
+              
+              // 矢印アニメーションのスケジュール登録
+              scheduleArrowForTextPage(textCompleteTime);
             }
-
-            // テキストページの場合：「全テキスト表示(maxDelay + 1.5s)から0.3秒後」にロック解除と矢印表示
-            const totalTextAnimTime = (maxDelayForText + 1.5) * 1000;
-            const unlockAndArrowTime = totalTextAnimTime + 300; 
-
-            arrowFadeTimeout = setTimeout(() => {
-              isDownScrollLocked = false;
-              if (!isLastPage) {
-                arrow.classList.add('fade-in'); // 2秒かけてフェードイン開始
-                // フェードイン完了(2.0s) + 待機(2.0s) = 4.0s後にバウンス開始
-                arrowBounceTimeout = setTimeout(() => {
-                  arrow.classList.add('is-bouncing');
-                }, 4000);
-              }
-            }, unlockAndArrowTime);
-
+          } else if (entry.target.classList.contains('pictogram-page')) {
+            lockDuration = 2500; 
+            showArrowForNormalPage();
           } else {
-            // タイトルページ・ピクトグラムページの場合：制限解除時間は今まで通り
-            let lockDuration = entry.target.classList.contains('pictogram-page') ? 2500 : 1500;
-            
-            downScrollTimeout = setTimeout(() => {
-              isDownScrollLocked = false;
-              if (!isLastPage) {
-                arrow.classList.add('fade-in');
-                arrowBounceTimeout = setTimeout(() => {
-                  arrow.classList.add('is-bouncing');
-                }, 4000);
-              }
-            }, lockDuration);
+            lockDuration = 1500; 
+            showArrowForNormalPage();
           }
 
           animateLangToggle(entry.target, maxDelayForText);
+
+          isDownScrollLocked = true;
+          clearTimeout(downScrollTimeout);
+          downScrollTimeout = setTimeout(() => {
+            isDownScrollLocked = false;
+          }, lockDuration);
 
         } else {
           entry.target.classList.remove('is-visible');
@@ -551,6 +578,9 @@
         });
 
         void visiblePage.offsetWidth;
+        
+        // 言語切り替え時に矢印状態もリセット
+        hideArrowInstantly();
 
         const activeWrapper = visiblePage.querySelector(`.lang-wrapper.lang-${currentLang}`);
         if (activeWrapper) {
@@ -564,27 +594,18 @@
             if (delay > maxDelayForText) maxDelayForText = delay;
           });
 
+          // テキストページでの時間再計算と再登録
+          const textCompleteTime = maxDelayForText + 1.5;
+          const lockDuration = (textCompleteTime + 0.3) * 1000;
+          
+          scheduleArrowForTextPage(textCompleteTime);
           animateLangToggle(visiblePage, maxDelayForText);
 
-          // 言語切り替え時も同様にタイマーを再設定
-          clearTimeout(downScrollTimeout);
-          clearTimeout(arrowFadeTimeout);
-          clearTimeout(arrowBounceTimeout);
-          arrow.classList.remove('fade-in', 'is-bouncing', 'instant-hide');
           isDownScrollLocked = true;
-
-          const totalTextAnimTime = (maxDelayForText + 1.5) * 1000;
-          const unlockAndArrowTime = totalTextAnimTime + 300; 
-
-          arrowFadeTimeout = setTimeout(() => {
+          clearTimeout(downScrollTimeout);
+          downScrollTimeout = setTimeout(() => {
             isDownScrollLocked = false;
-            if (!isLastPage) {
-              arrow.classList.add('fade-in');
-              arrowBounceTimeout = setTimeout(() => {
-                arrow.classList.add('is-bouncing');
-              }, 4000);
-            }
-          }, unlockAndArrowTime);
+          }, lockDuration);
         }
       } else {
         animateLangToggle(visiblePage, 0);
@@ -597,12 +618,9 @@
     function scrollToPage(index, isInstantAction = false) {
       if (index < 0 || index >= pages.length) return;
       
-      // ▼▼ スクロール開始と同時に矢印を即座に非表示 ▼▼
-      clearTimeout(arrowFadeTimeout);
-      clearTimeout(arrowBounceTimeout);
-      arrow.classList.remove('fade-in', 'is-bouncing');
-      arrow.classList.add('instant-hide');
-
+      // スクロール開始と同時に矢印を即座に消す（残像を残さない）
+      hideArrowInstantly();
+      
       let behavior = 'smooth';
       if (isInstantAction) behavior = 'auto';
       if (index === 1 || currentPageIndex === 1) behavior = 'auto';
