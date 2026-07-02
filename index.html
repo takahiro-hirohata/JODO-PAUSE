@@ -10,15 +10,19 @@
     body, html {
       margin: 0;
       padding: 0;
+      width: 100%;
       height: 100%;
       background-color: #ffffff;
       color: #111;
       -webkit-font-smoothing: antialiased;
       overflow: hidden; 
+      overscroll-behavior-y: none;
     }
 
     main {
-      height: 100vh;
+      height: 100vh; 
+      height: 100dvh;
+      width: 100%;
       overflow-y: scroll;
       scroll-snap-type: y mandatory;
       
@@ -26,7 +30,6 @@
       scrollbar-color: rgba(150, 150, 150, 0.3) transparent; 
     }
     
-    /* WebKit系（Chrome, Safari, Edge）用のスクロールバー設定 */
     main::-webkit-scrollbar {
       width: 6px; 
     }
@@ -41,24 +44,25 @@
       background: rgba(150, 150, 150, 0.5); 
     }
 
-    /* 言語切り替えボタンのコンテナ（コンテンツと左端を揃えるための枠） */
+    /* 言語切り替えボタンのコンテナ */
     .header-container {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
-      pointer-events: none; /* コンテナ自体はクリックを貫通させる */
+      pointer-events: none;
       z-index: 1000;
+      height: env(safe-area-inset-top);
     }
     .header-inner {
       max-width: 46rem;
       margin: 0 auto;
-      padding: 30px 1.2rem 0; /* .pageのpaddingと合わせて左端を揃える */
+      padding: 30px 1.2rem 0; 
       box-sizing: border-box;
     }
     .lang-toggle {
       display: inline-block;
-      pointer-events: auto; /* ボタン部分はクリック可能に */
+      pointer-events: auto; 
       font-family: "Noto Serif JP", "Yu Mincho", "Hiragino Mincho ProN", "Times New Roman", serif;
       font-size: 0.95rem;
       color: #666;
@@ -68,7 +72,6 @@
     .lang-toggle:hover {
       color: #111;
     }
-    /* ボタン内の1文字ずつアニメーションさせるためのスタイル */
     .lang-toggle span {
       display: inline-block;
       opacity: 0;
@@ -77,6 +80,8 @@
     /* 2. 1画面（1ページ）ごとの設定 */
     .page {
       height: 100vh;
+      height: 100dvh;
+      width: 100%;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -87,11 +92,13 @@
       box-sizing: border-box;
       position: relative;
       scroll-snap-align: center;
+      overflow: hidden; 
     }
 
     .last-page {
       justify-content: flex-end;
       padding-bottom: 3rem;
+      padding-bottom: calc(3rem + env(safe-area-inset-bottom));
     }
 
     /* タイトル画面のアニメーション */
@@ -116,12 +123,10 @@
       transition: opacity 2.5s ease-in-out;
     }
 
-    /* テキストページ用の設定 */
     .text-page p {
       opacity: 1;
     }
 
-    /* 各要素のスタイル */
     p, h1, h2, h3, footer {
       font-family: "Noto Serif JP", "Yu Mincho", "Hiragino Mincho ProN", "Times New Roman", serif;
       line-height: 2;
@@ -152,7 +157,6 @@
       word-wrap: break-word;
     }
 
-    /* テキスト分割アニメーション用のスタイル */
     .text-fragment {
       opacity: 0;
       transition: opacity 1.5s ease; 
@@ -174,37 +178,44 @@
       width: 100%;
     }
 
-    /* ★修正：下スクロールを促す矢印のアニメーション */
+    /* ▼▼ 矢印のスタイル修正 ▼▼ */
     .scroll-arrow {
       position: fixed;
-      bottom: 40px;
+      bottom: calc(40px + env(safe-area-inset-bottom));
       left: 50%;
       width: 14px;
       height: 14px;
       border-right: 2px solid #aaa;
       border-bottom: 2px solid #aaa;
       transform: translateX(-50%) rotate(45deg);
-      animation: arrowBounce 2.5s infinite ease-in-out;
       pointer-events: auto;
       z-index: 100;
       cursor: pointer;
-      
-      /* 初期状態は透明にし、is-visible クラスでフェードインさせる */
-      opacity: 0;
-      transition: opacity 1.0s ease; /* 1.0秒かけてフェードイン */
+      opacity: 0; /* デフォルトは非表示・アニメーションなし */
     }
-    .scroll-arrow.is-visible {
-      opacity: 1;
+
+    /* フェードイン（2.0s） */
+    .scroll-arrow.fade-in {
+      opacity: 1 !important;
+      transition: opacity 2.0s ease;
     }
-    .scroll-arrow.no-transition {
-      /* 即座に消すための補助クラス */
+
+    /* 即座に非表示にする（スクロール開始時） */
+    .scroll-arrow.instant-hide {
+      opacity: 0 !important;
       transition: none !important;
+    }
+
+    /* 上下のバウンスアニメーション */
+    .scroll-arrow.is-bouncing {
+      animation: arrowBounce 2.5s infinite ease-in-out;
     }
     
     @keyframes arrowBounce {
       0%, 100% { transform: translateX(-50%) rotate(45deg) translate(0, 0); }
       50% { transform: translateX(-50%) rotate(45deg) translate(8px, 8px); }
     }
+    /* ▲▲ 矢印のスタイル修正 ▲▲ */
 
     /* ピクトグラムのページ設定 */
     .pictogram-page {
@@ -345,14 +356,16 @@
     let currentPageIndex = 0;
     let isScrolling = false; 
     let isDownScrollLocked = false;
+    
+    // ▼▼ タイマー管理用の変数を追加 ▼▼
     let downScrollTimeout = null;
-    let arrowTimeout = null; // ★追加：矢印の遅延表示用タイマー
+    let arrowFadeTimeout = null;
+    let arrowBounceTimeout = null;
+    let langToggleTimeout = null; 
 
-    // URLパラメータから初期言語を取得（?lang=en があれば英語から開始）
     const urlParams = new URLSearchParams(window.location.search);
     let currentLang = urlParams.get('lang') === 'en' ? 'en' : 'ja';
 
-    // フッターなどの静的要素の初期言語設定
     document.querySelectorAll('.lang-ja:not(.lang-wrapper)').forEach(el => {
       el.style.display = currentLang === 'ja' ? 'inline' : 'none';
     });
@@ -360,7 +373,6 @@
       el.style.display = currentLang === 'en' ? 'inline' : 'none';
     });
 
-    // 両方の言語（JA/EN）のテキスト・遅延をあらかじめ構築しておく
     textPages.forEach(page => {
       const p = page.querySelector('p');
       if (p) {
@@ -373,7 +385,7 @@
         ['ja', 'en'].forEach(lang => {
           const wrapper = document.createElement('span');
           wrapper.className = `lang-wrapper lang-${lang}`;
-          if (lang !== currentLang) wrapper.style.display = 'none'; // 初期言語以外は隠す
+          if (lang !== currentLang) wrapper.style.display = 'none'; 
 
           let currentDelay = 0;
           Array.from(texts[lang]).forEach(char => {
@@ -383,9 +395,8 @@
             span.dataset.delay = currentDelay.toFixed(2);
             wrapper.appendChild(span);
 
-            currentDelay += 0.13; // 基本の間隔
+            currentDelay += 0.13; 
 
-            // 言語によって「間」の条件を変える
             if (lang === 'ja' && ['、', '。', ' '].includes(char)) {
               currentDelay += 0.30;
             } else if (lang === 'en' && [',', '.', '—'].includes(char)) {
@@ -397,12 +408,10 @@
       }
     });
 
-    // 言語ボタンの文字単位アニメーションと「視覚的な左端揃え」の処理
     function animateLangToggle(pageElement, textMaxDelay = 0) {
       const toggleText = currentLang === 'ja' ? 'EN/' : 'JP/';
       langToggleBtn.innerHTML = ''; 
 
-      // 視覚的な左端揃え（Optical Alignment）の微調整
       if (currentLang === 'ja') {
         langToggleBtn.style.transform = 'translateX(-0.15em)';
       } else {
@@ -412,20 +421,17 @@
       const isTextPage = pageElement.classList.contains('text-page');
       const isPictoPage = pageElement.classList.contains('pictogram-page');
 
-      // 1文字ずつspanに分割して追加
       Array.from(toggleText).forEach((char) => {
         const span = document.createElement('span');
         span.textContent = char;
         langToggleBtn.appendChild(span);
       });
 
-      // CSSの変更を強制適用
       void langToggleBtn.offsetWidth; 
 
       const spans = langToggleBtn.querySelectorAll('span');
       spans.forEach((span, i) => {
         if (isTextPage) {
-          // テキストページ：文字が全て表示されてから【3秒後】にフェードイン
           const baseDelay = textMaxDelay + 1.5 + 3.0;
           const charDelay = baseDelay + (i * 0.13); 
           span.style.transition = 'opacity 1.5s ease';
@@ -446,10 +452,15 @@
         if (entry.isIntersecting) {
           entry.target.classList.add('is-visible');
           currentPageIndex = Array.from(pages).indexOf(entry.target);
+          isLastPage = entry.target === pages[pages.length - 1];
 
-          const isTitlePage = entry.target === pages[0];
-          let lockDuration = 0;
-          let arrowDelay = 0;
+          // ▼▼ ページ表示時の矢印リセット ▼▼
+          clearTimeout(downScrollTimeout);
+          clearTimeout(arrowFadeTimeout);
+          clearTimeout(arrowBounceTimeout);
+          arrow.classList.remove('fade-in', 'is-bouncing', 'instant-hide');
+          isDownScrollLocked = true; // 初期状態はロック
+
           let maxDelayForText = 0;
 
           if (entry.target.classList.contains('text-page')) {
@@ -463,58 +474,40 @@
                 fragment.style.opacity = '1';
                 if (delay > maxDelayForText) maxDelayForText = delay;
               });
-              
-              // ★修正：テキスト完了(maxDelayForText + 1.5s) に 0.5s を追加した時間がロック解除時間＆矢印表示時間
-              lockDuration = (maxDelayForText + 1.5) * 1000 + 500;
-              arrowDelay = lockDuration;
             }
-          } else if (entry.target.classList.contains('pictogram-page')) {
-            lockDuration = 2500 + 500; // アニメ完了(2.5s) + 0.5s
-            arrowDelay = lockDuration;
-          } else if (isTitlePage) {
-            // ★修正：最初のタイトルページは変更を適用させず、すぐに矢印を表示する
-            lockDuration = 1500; 
-            arrowDelay = 0;
+
+            // テキストページの場合：「全テキスト表示(maxDelay + 1.5s)から0.3秒後」にロック解除と矢印表示
+            const totalTextAnimTime = (maxDelayForText + 1.5) * 1000;
+            const unlockAndArrowTime = totalTextAnimTime + 300; 
+
+            arrowFadeTimeout = setTimeout(() => {
+              isDownScrollLocked = false;
+              if (!isLastPage) {
+                arrow.classList.add('fade-in'); // 2秒かけてフェードイン開始
+                // フェードイン完了(2.0s) + 待機(2.0s) = 4.0s後にバウンス開始
+                arrowBounceTimeout = setTimeout(() => {
+                  arrow.classList.add('is-bouncing');
+                }, 4000);
+              }
+            }, unlockAndArrowTime);
+
           } else {
-            lockDuration = 1500; 
-            arrowDelay = 1500;
+            // タイトルページ・ピクトグラムページの場合：制限解除時間は今まで通り
+            let lockDuration = entry.target.classList.contains('pictogram-page') ? 2500 : 1500;
+            
+            downScrollTimeout = setTimeout(() => {
+              isDownScrollLocked = false;
+              if (!isLastPage) {
+                arrow.classList.add('fade-in');
+                arrowBounceTimeout = setTimeout(() => {
+                  arrow.classList.add('is-bouncing');
+                }, 4000);
+              }
+            }, lockDuration);
           }
 
-          // 言語ボタンのアニメーション実行
           animateLangToggle(entry.target, maxDelayForText);
 
-          // ★修正：下へのスクロール操作をロック
-          isDownScrollLocked = true;
-          clearTimeout(downScrollTimeout);
-          downScrollTimeout = setTimeout(() => {
-            isDownScrollLocked = false;
-          }, lockDuration);
-
-          // ★修正：矢印の遅延表示コントロール
-          isLastPage = entry.target === pages[pages.length - 1];
-          clearTimeout(arrowTimeout);
-          
-          if (isLastPage) {
-            // 最後のページでは即座に隠す
-            arrow.classList.remove('no-transition');
-            arrow.classList.remove('is-visible');
-          } else {
-            if (arrowDelay > 0) {
-              // 一度透明に戻してからタイマーで表示
-              arrow.classList.add('no-transition');
-              arrow.classList.remove('is-visible');
-              void arrow.offsetWidth; // 変更を適用
-              arrow.classList.remove('no-transition');
-              
-              arrowTimeout = setTimeout(() => {
-                arrow.classList.add('is-visible');
-              }, arrowDelay);
-            } else {
-              // タイトルページなど遅延0の場合はすぐに表示
-              arrow.classList.remove('no-transition');
-              arrow.classList.add('is-visible');
-            }
-          }
         } else {
           entry.target.classList.remove('is-visible');
           
@@ -536,7 +529,6 @@
       observer.observe(page);
     });
 
-    // 言語切り替えボタンのクリックイベント
     langToggleBtn.addEventListener('click', () => {
       currentLang = currentLang === 'ja' ? 'en' : 'ja';
 
@@ -574,26 +566,25 @@
 
           animateLangToggle(visiblePage, maxDelayForText);
 
-          // ★修正：言語切り替え時も同様にスクロールロックと矢印表示を再計算
-          const lockDuration = (maxDelayForText + 1.5) * 1000 + 500;
-          
-          isDownScrollLocked = true;
+          // 言語切り替え時も同様にタイマーを再設定
           clearTimeout(downScrollTimeout);
-          downScrollTimeout = setTimeout(() => {
-            isDownScrollLocked = false;
-          }, lockDuration);
+          clearTimeout(arrowFadeTimeout);
+          clearTimeout(arrowBounceTimeout);
+          arrow.classList.remove('fade-in', 'is-bouncing', 'instant-hide');
+          isDownScrollLocked = true;
 
-          clearTimeout(arrowTimeout);
-          if (!isLastPage) {
-            arrow.classList.add('no-transition');
-            arrow.classList.remove('is-visible');
-            void arrow.offsetWidth;
-            arrow.classList.remove('no-transition');
-            
-            arrowTimeout = setTimeout(() => {
-              arrow.classList.add('is-visible');
-            }, lockDuration);
-          }
+          const totalTextAnimTime = (maxDelayForText + 1.5) * 1000;
+          const unlockAndArrowTime = totalTextAnimTime + 300; 
+
+          arrowFadeTimeout = setTimeout(() => {
+            isDownScrollLocked = false;
+            if (!isLastPage) {
+              arrow.classList.add('fade-in');
+              arrowBounceTimeout = setTimeout(() => {
+                arrow.classList.add('is-bouncing');
+              }, 4000);
+            }
+          }, unlockAndArrowTime);
         }
       } else {
         animateLangToggle(visiblePage, 0);
@@ -606,6 +597,12 @@
     function scrollToPage(index, isInstantAction = false) {
       if (index < 0 || index >= pages.length) return;
       
+      // ▼▼ スクロール開始と同時に矢印を即座に非表示 ▼▼
+      clearTimeout(arrowFadeTimeout);
+      clearTimeout(arrowBounceTimeout);
+      arrow.classList.remove('fade-in', 'is-bouncing');
+      arrow.classList.add('instant-hide');
+
       let behavior = 'smooth';
       if (isInstantAction) behavior = 'auto';
       if (index === 1 || currentPageIndex === 1) behavior = 'auto';
