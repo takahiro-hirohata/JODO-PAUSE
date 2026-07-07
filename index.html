@@ -113,6 +113,7 @@
       justify-content: flex-end;
       padding-bottom: 3rem;
       padding-bottom: calc(3rem + env(safe-area-inset-bottom));
+      position: relative; /* 子要素の絶対配置の基準にするため */
     }
 
     .title-content {
@@ -252,6 +253,37 @@
       display: block;
       object-fit: contain;
     }
+
+    /* 連絡先アイコン（メールマーク）のスタイル */
+    .contact-icon-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      opacity: 0;
+      transition: opacity 4.0s ease; /* 4.0sのフェードイン */
+      pointer-events: none; /* 非表示時はタップ不可 */
+      z-index: 50;
+    }
+
+    .contact-icon-container.is-visible {
+      opacity: 1;
+      pointer-events: auto; /* 表示時にタップ可能にする */
+    }
+
+    .contact-icon-container a {
+      display: block;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .contact-icon-container img {
+      width: 110px;
+      height: 110px;
+      display: block;
+      object-fit: contain;
+    }
+
   </style>
 </head>
 <body>
@@ -339,6 +371,11 @@
     <div class="page"></div>
 
     <div class="page last-page">
+      <div class="contact-icon-container" id="contactIconContainer">
+        <a href="https://forms.gle/EDWTkpRhHekpbrn56" id="contactLink">
+          <img src="images/pictogram-04.png" alt="Contact">
+        </a>
+      </div>
       <footer>
         状動-PAUSE, © 2026<br>
         by Takahiro Yahata.<br>
@@ -349,13 +386,25 @@
 
   <script>
     const LANGUAGES = ['ja', 'en'];
-    const PUNCTUATION_PAUSES = {
-      ja: ['、', '。', ' '],
-      en: [',', '.', '—']
+    
+    // 句読点の遅延設定
+    const PAUSES = {
+      0.3: {
+        ja: ['、', ' '],
+        en: [',', '-', '—']
+      },
+      0.5: {
+        ja: ['。'],
+        en: ['.']
+      },
+      0.1: {
+        ja: ['」', '』'],
+        en: ['”']
+      }
     };
+
     const TIMING = {
-      charDelay: 0.13,
-      punctuationDelay: 0.30,
+      charDelay: 0.13, // LangToggle等の基本アニメーション用
       textFade: 1.5,
       textExitFade: 2.5,
       textArrowDelay: 0.3,
@@ -389,7 +438,8 @@
     const timers = {
       arrowShow: null,
       arrowBounce: null,
-      downScroll: null
+      downScroll: null,
+      contactIcon: null // 連絡先アイコン用のタイマーを追加
     };
 
     function clearTimer(name) {
@@ -478,9 +528,30 @@
       }, TIMING.normalArrowDelayMs);
     }
 
-    function getFragmentDelay(lang, char, currentDelay) {
-      const hasPause = PUNCTUATION_PAUSES[lang].includes(char);
-      return currentDelay + TIMING.charDelay + (hasPause ? TIMING.punctuationDelay : 0);
+    function getFragmentDelay(lang, char, prevChar, nextChar, currentDelay) {
+      const randomCharDelay = 0.12 + Math.random() * 0.02;
+      let extraDelay = 0;
+
+      if (PAUSES[0.3][lang] && PAUSES[0.3][lang].includes(char)) {
+        extraDelay += 0.3;
+      }
+
+      if (PAUSES[0.5][lang] && PAUSES[0.5][lang].includes(char)) {
+        const isDeferred = nextChar && PAUSES[0.1][lang] && PAUSES[0.1][lang].includes(nextChar);
+        if (!isDeferred) {
+          extraDelay += 0.5;
+        }
+      }
+
+      if (PAUSES[0.1][lang] && PAUSES[0.1][lang].includes(char)) {
+        extraDelay += 0.1;
+        const hasDeferred = prevChar && PAUSES[0.5][lang] && PAUSES[0.5][lang].includes(prevChar);
+        if (hasDeferred) {
+          extraDelay += 0.5;
+        }
+      }
+
+      return currentDelay + randomCharDelay + extraDelay;
     }
 
     function createLanguageWrapper(lang, text) {
@@ -489,14 +560,20 @@
       if (lang !== state.currentLang) wrapper.style.display = 'none';
 
       let currentDelay = 0;
-      Array.from(text).forEach(char => {
+      const charArray = Array.from(text);
+      
+      charArray.forEach((char, index) => {
+        const prevChar = index > 0 ? charArray[index - 1] : null;
+        const nextChar = index < charArray.length - 1 ? charArray[index + 1] : null;
+        
         const span = document.createElement('span');
         span.textContent = char;
         span.classList.add('text-fragment');
-        span.dataset.delay = currentDelay.toFixed(2);
+        
+        span.dataset.delay = currentDelay.toFixed(3);
         wrapper.appendChild(span);
 
-        currentDelay = getFragmentDelay(lang, char, currentDelay);
+        currentDelay = getFragmentDelay(lang, char, prevChar, nextChar, currentDelay);
       });
 
       return wrapper;
@@ -619,6 +696,16 @@
         showArrowForNormalPage();
       }
 
+      // 最後のページの場合の処理（3.0s後にメールアイコンをフェードイン）
+      if (state.isLastPage) {
+        const iconContainer = page.querySelector('#contactIconContainer');
+        if (iconContainer) {
+          setTimer('contactIcon', () => {
+            iconContainer.classList.add('is-visible');
+          }, 3000);
+        }
+      }
+
       animateLangToggle(page, maxDelay);
       setDownScrollLock(lockDuration);
     }
@@ -626,6 +713,15 @@
     function hidePage(page) {
       page.classList.remove('is-visible');
       if (isTextPage(page)) hidePageText(page);
+
+      // 最後のページから離れた場合、メールアイコンを非表示にしてタイマーもリセット
+      if (page.classList.contains('last-page')) {
+        clearTimer('contactIcon');
+        const iconContainer = page.querySelector('#contactIconContainer');
+        if (iconContainer) {
+          iconContainer.classList.remove('is-visible');
+        }
+      }
     }
 
     function updateUrlForLanguage() {
@@ -740,6 +836,21 @@
       if (state.isLastPage || state.isScrolling || state.isDownScrollLocked) return;
       scrollToPage(state.currentPageIndex + 1, true);
     });
+
+    // 連絡先リンクの遅延遷移処理
+    const contactLink = document.getElementById('contactLink');
+    if (contactLink) {
+      contactLink.addEventListener('click', function(e) {
+        e.preventDefault(); // デフォルトのリンク遷移を無効化
+        const targetUrl = this.getAttribute('href');
+        
+        // 0.4s(400ms)後に新しいタブで開く
+        setTimeout(() => {
+          window.open(targetUrl, '_blank');
+        }, 400);
+      });
+    }
+
   </script>
 
 </body>
