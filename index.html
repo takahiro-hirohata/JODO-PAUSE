@@ -113,7 +113,7 @@
       justify-content: flex-end;
       padding-bottom: 3rem;
       padding-bottom: calc(3rem + env(safe-area-inset-bottom));
-      position: relative; /* 子要素の絶対配置の基準にするため */
+      position: relative;
     }
 
     .title-content {
@@ -202,6 +202,7 @@
       color: #777;
       text-align: center;
       width: 100%;
+      opacity: 0; /* 初期状態を非表示に設定 */
     }
 
     .scroll-arrow {
@@ -254,21 +255,20 @@
       object-fit: contain;
     }
 
-    /* 連絡先アイコン（メールマーク）のスタイル */
     .contact-icon-container {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
       opacity: 0;
-      transition: opacity 4.0s ease; /* 4.0sのフェードイン */
-      pointer-events: none; /* 非表示時はタップ不可 */
+      transition: opacity 4.0s ease;
+      pointer-events: none;
       z-index: 50;
     }
 
     .contact-icon-container.is-visible {
       opacity: 1;
-      pointer-events: auto; /* 表示時にタップ可能にする */
+      pointer-events: auto;
     }
 
     .contact-icon-container a {
@@ -368,7 +368,7 @@
          data-en="Not everything needs to turn into creativity."></p>
     </div>
 
-    <div class="page"></div>
+    <div class="page blank-page"></div>
 
     <div class="page last-page">
       <div class="contact-icon-container" id="contactIconContainer">
@@ -387,7 +387,6 @@
   <script>
     const LANGUAGES = ['ja', 'en'];
     
-    // 句読点の遅延設定
     const PAUSES = {
       0.3: {
         ja: ['、', ' '],
@@ -404,7 +403,7 @@
     };
 
     const TIMING = {
-      charDelay: 0.13, // LangToggle等の基本アニメーション用
+      charDelay: 0.13,
       textFade: 1.5,
       textExitFade: 2.5,
       textArrowDelay: 0.3,
@@ -432,14 +431,16 @@
       isDownScrollLocked: false,
       isLastPage: false,
       isScrolling: false,
-      touchStartY: 0
+      touchStartY: 0,
+      isArrowScroll: false // スクロールボタン経由での遷移かを判定するフラグ
     };
 
     const timers = {
       arrowShow: null,
       arrowBounce: null,
       downScroll: null,
-      contactIcon: null // 連絡先アイコン用のタイマーを追加
+      contactIcon: null,
+      footerFadeIn: null // フッターフェードイン用のタイマー
     };
 
     function clearTimer(name) {
@@ -458,6 +459,10 @@
 
     function isPictogramPage(page) {
       return page && page.classList.contains('pictogram-page');
+    }
+
+    function isBlankPage(page) {
+      return page && page.classList.contains('blank-page');
     }
 
     function getTextCompleteTime(maxDelay) {
@@ -526,6 +531,19 @@
         arrow.style.opacity = '1';
         arrow.style.animation = 'arrowBounce 2.5s infinite ease-in-out';
       }, TIMING.normalArrowDelayMs);
+    }
+
+    function showArrowForBlankPage() {
+      if (state.isLastPage) return;
+
+      setTimer('arrowShow', () => {
+        arrow.style.transition = `opacity 4.0s ease`;
+        arrow.style.opacity = '1';
+
+        setTimer('arrowBounce', () => {
+          arrow.style.animation = 'arrowBounce 2.5s infinite ease-in-out';
+        }, 5000);
+      }, 1000);
     }
 
     function getFragmentDelay(lang, char, prevChar, nextChar, currentDelay) {
@@ -654,6 +672,9 @@
         } else if (isPictogramPage(page)) {
           span.style.transition = 'opacity 2.5s ease-in-out';
           span.style.transitionDelay = '0s';
+        } else if (isBlankPage(page)) {
+          span.style.transition = 'opacity 4.0s ease';
+          span.style.transitionDelay = '1.0s';
         } else {
           span.style.transition = `opacity ${TIMING.textFade}s ease`;
           span.style.transitionDelay = '0s';
@@ -692,17 +713,36 @@
       } else if (isPictogramPage(page)) {
         lockDuration = TIMING.pictogramLockMs;
         showArrowForNormalPage();
+      } else if (isBlankPage(page)) {
+        lockDuration = TIMING.normalLockMs;
+        showArrowForBlankPage();
       } else {
         showArrowForNormalPage();
       }
 
-      // 最後のページの場合の処理（3.0s後にメールアイコンをフェードイン）
       if (state.isLastPage) {
         const iconContainer = page.querySelector('#contactIconContainer');
         if (iconContainer) {
           setTimer('contactIcon', () => {
             iconContainer.classList.add('is-visible');
           }, 3000);
+        }
+
+        // フッターの表示制御を追加
+        const footer = page.querySelector('footer');
+        if (footer) {
+          if (state.isArrowScroll) {
+            // ボタンによるスクロール遷移時
+            footer.style.transition = 'opacity 2.5s ease';
+            setTimer('footerFadeIn', () => {
+              footer.style.opacity = '1';
+            }, 500);
+            state.isArrowScroll = false; // 処理後にフラグをリセット
+          } else {
+            // スワイプやホイールなどその他のスクロール時
+            footer.style.transition = 'none';
+            footer.style.opacity = '1';
+          }
         }
       }
 
@@ -714,12 +754,20 @@
       page.classList.remove('is-visible');
       if (isTextPage(page)) hidePageText(page);
 
-      // 最後のページから離れた場合、メールアイコンを非表示にしてタイマーもリセット
       if (page.classList.contains('last-page')) {
         clearTimer('contactIcon');
+        clearTimer('footerFadeIn'); // フッター用のタイマーもクリア
+        
         const iconContainer = page.querySelector('#contactIconContainer');
         if (iconContainer) {
           iconContainer.classList.remove('is-visible');
+        }
+
+        // ページを離れる際にフッターを非表示に戻す
+        const footer = page.querySelector('footer');
+        if (footer) {
+          footer.style.opacity = '0';
+          footer.style.transition = 'none';
         }
       }
     }
@@ -784,8 +832,10 @@
       if (state.isScrolling) return;
 
       if (e.deltaY > 0) {
+        state.isArrowScroll = false; // ホイール操作時はフラグを折る
         handleForwardScroll();
       } else if (e.deltaY < 0) {
+        state.isArrowScroll = false; // ホイール操作時はフラグを折る
         scrollToPage(state.currentPageIndex - 1);
       }
     }
@@ -805,8 +855,10 @@
       const diff = state.touchStartY - touchEndY;
 
       if (diff > TIMING.swipeThreshold) {
+        state.isArrowScroll = false; // スワイプ操作時はフラグを折る
         handleForwardScroll();
       } else if (diff < -TIMING.swipeThreshold) {
+        state.isArrowScroll = false; // スワイプ操作時はフラグを折る
         scrollToPage(state.currentPageIndex - 1);
       }
     }
@@ -832,19 +884,19 @@
     main.addEventListener('touchstart', handleTouchStart, { passive: true });
     main.addEventListener('touchmove', handleTouchMove, { passive: false });
     main.addEventListener('touchend', handleTouchEnd);
+    
     arrow.addEventListener('click', () => {
       if (state.isLastPage || state.isScrolling || state.isDownScrollLocked) return;
+      state.isArrowScroll = true; // スクロールボタンが押されたフラグを立てる
       scrollToPage(state.currentPageIndex + 1, true);
     });
 
-    // 連絡先リンクの遅延遷移処理
     const contactLink = document.getElementById('contactLink');
     if (contactLink) {
       contactLink.addEventListener('click', function(e) {
-        e.preventDefault(); // デフォルトのリンク遷移を無効化
+        e.preventDefault();
         const targetUrl = this.getAttribute('href');
         
-        // 0.4s(400ms)後に新しいタブで開く
         setTimeout(() => {
           window.open(targetUrl, '_blank');
         }, 400);
