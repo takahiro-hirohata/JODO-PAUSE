@@ -16,6 +16,12 @@
       --scrollbar-thumb-hover: rgba(150, 150, 150, 0.5);
     }
 
+    /* 全要素に対してiPhoneの横画面時にテキストが自動拡大されるのを防ぐ */
+    * {
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+
     html,
     body {
       margin: 0;
@@ -25,9 +31,6 @@
       background-color: #ffffff;
       color: var(--color-text);
       -webkit-font-smoothing: antialiased;
-      /* iPhoneの横画面時にテキストが自動拡大されるのを防ぐ */
-      -webkit-text-size-adjust: 100%;
-      text-size-adjust: 100%;
       overflow: hidden;
       overscroll-behavior-y: none;
     }
@@ -327,7 +330,7 @@
       }
 
       p {
-        font-size: 0.95rem;
+        font-size: 1.2rem;
       }
 
       footer {
@@ -336,7 +339,7 @@
       }
       
       .last-page {
-        padding-bottom: 1.5rem;
+        padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
       }
     }
 
