@@ -25,6 +25,9 @@
       background-color: #ffffff;
       color: var(--color-text);
       -webkit-font-smoothing: antialiased;
+      /* iPhoneの横画面時にテキストが自動拡大されるのを防ぐ */
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
       overflow: hidden;
       overscroll-behavior-y: none;
     }
@@ -202,7 +205,7 @@
       color: #777;
       text-align: center;
       width: 100%;
-      opacity: 0; /* 初期状態を非表示に設定 */
+      opacity: 0;
     }
 
     .scroll-arrow {
@@ -289,21 +292,20 @@
        --------------------------------------------------- */
     @media screen and (max-width: 950px) and (orientation: landscape) {
       .header-inner {
-        padding-top: 15px; /* ヘッダーの余白を減らす */
+        padding-top: 15px;
       }
 
       .page {
-        /* 左右のセーフエリア（ノッチなど）を考慮しつつパディングを設定 */
         padding: 0 calc(var(--page-padding-x) + env(safe-area-inset-right)) 0 calc(var(--page-padding-x) + env(safe-area-inset-left));
       }
 
       .pictogram-container {
-        flex-direction: row; /* ピクトグラムを横並びに変更 */
+        flex-direction: row;
         gap: 2rem;
       }
 
       .circle-pictogram {
-        width: 85px; /* 縦幅に合わせて少し縮小 */
+        width: 85px;
         height: 85px;
       }
 
@@ -486,7 +488,7 @@
       isLastPage: false,
       isScrolling: false,
       touchStartY: 0,
-      isArrowScroll: false // スクロールボタン経由での遷移かを判定するフラグ
+      isArrowScroll: false 
     };
 
     const timers = {
@@ -494,7 +496,7 @@
       arrowBounce: null,
       downScroll: null,
       contactIcon: null,
-      footerFadeIn: null // フッターフェードイン用のタイマー
+      footerFadeIn: null 
     };
 
     function clearTimer(name) {
@@ -782,18 +784,15 @@
           }, 3000);
         }
 
-        // フッターの表示制御を追加
         const footer = page.querySelector('footer');
         if (footer) {
           if (state.isArrowScroll) {
-            // ボタンによるスクロール遷移時
             footer.style.transition = 'opacity 2.5s ease';
             setTimer('footerFadeIn', () => {
               footer.style.opacity = '1';
             }, 500);
-            state.isArrowScroll = false; // 処理後にフラグをリセット
+            state.isArrowScroll = false; 
           } else {
-            // スワイプやホイールなどその他のスクロール時
             footer.style.transition = 'none';
             footer.style.opacity = '1';
           }
@@ -810,14 +809,13 @@
 
       if (page.classList.contains('last-page')) {
         clearTimer('contactIcon');
-        clearTimer('footerFadeIn'); // フッター用のタイマーもクリア
+        clearTimer('footerFadeIn'); 
         
         const iconContainer = page.querySelector('#contactIconContainer');
         if (iconContainer) {
           iconContainer.classList.remove('is-visible');
         }
 
-        // ページを離れる際にフッターを非表示に戻す
         const footer = page.querySelector('footer');
         if (footer) {
           footer.style.opacity = '0';
@@ -886,10 +884,10 @@
       if (state.isScrolling) return;
 
       if (e.deltaY > 0) {
-        state.isArrowScroll = false; // ホイール操作時はフラグを折る
+        state.isArrowScroll = false; 
         handleForwardScroll();
       } else if (e.deltaY < 0) {
-        state.isArrowScroll = false; // ホイール操作時はフラグを折る
+        state.isArrowScroll = false; 
         scrollToPage(state.currentPageIndex - 1);
       }
     }
@@ -909,10 +907,10 @@
       const diff = state.touchStartY - touchEndY;
 
       if (diff > TIMING.swipeThreshold) {
-        state.isArrowScroll = false; // スワイプ操作時はフラグを折る
+        state.isArrowScroll = false; 
         handleForwardScroll();
       } else if (diff < -TIMING.swipeThreshold) {
-        state.isArrowScroll = false; // スワイプ操作時はフラグを折る
+        state.isArrowScroll = false; 
         scrollToPage(state.currentPageIndex - 1);
       }
     }
@@ -941,7 +939,7 @@
     
     arrow.addEventListener('click', () => {
       if (state.isLastPage || state.isScrolling || state.isDownScrollLocked) return;
-      state.isArrowScroll = true; // スクロールボタンが押されたフラグを立てる
+      state.isArrowScroll = true; 
       scrollToPage(state.currentPageIndex + 1, true);
     });
 
