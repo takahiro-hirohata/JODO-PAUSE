@@ -284,6 +284,60 @@
       object-fit: contain;
     }
 
+    /* ---------------------------------------------------
+       スマートフォンなどの横画面（ランドスケープ）用スタイル 
+       --------------------------------------------------- */
+    @media screen and (max-width: 950px) and (orientation: landscape) {
+      .header-inner {
+        padding-top: 15px; /* ヘッダーの余白を減らす */
+      }
+
+      .page {
+        /* 左右のセーフエリア（ノッチなど）を考慮しつつパディングを設定 */
+        padding: 0 calc(var(--page-padding-x) + env(safe-area-inset-right)) 0 calc(var(--page-padding-x) + env(safe-area-inset-left));
+      }
+
+      .pictogram-container {
+        flex-direction: row; /* ピクトグラムを横並びに変更 */
+        gap: 2rem;
+      }
+
+      .circle-pictogram {
+        width: 85px; /* 縦幅に合わせて少し縮小 */
+        height: 85px;
+      }
+
+      .scroll-arrow {
+        bottom: calc(15px + env(safe-area-inset-bottom));
+      }
+
+      .contact-icon-container img {
+        width: 85px;
+        height: 85px;
+      }
+
+      h1 {
+        font-size: 1.2rem;
+      }
+
+      h2 {
+        font-size: 0.85rem;
+      }
+
+      p {
+        font-size: 0.95rem;
+      }
+
+      footer {
+        padding-top: 0.5rem;
+        font-size: 0.75rem;
+      }
+      
+      .last-page {
+        padding-bottom: 1.5rem;
+      }
+    }
+
   </style>
 </head>
 <body>
